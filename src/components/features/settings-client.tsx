@@ -18,7 +18,7 @@ export function SettingsClient() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [school, setSchool] = useState("");
-  const [mode, setMode] = useState<PreferredMode>("Mixed");
+  const [modes, setModes] = useState<PreferredMode[]>(["Mixed"]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +30,19 @@ export function SettingsClient() {
         setFullName(user.full_name);
         setEmail(user.email ?? "");
         setSchool(user.school_or_workplace);
-        setMode(user.preferred_mode);
+        setModes(user.preferred_modes?.length ? user.preferred_modes : [user.preferred_mode]);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unable to load settings"));
   }, []);
+
+  function toggleMode(mode: PreferredMode) {
+    setModes((current) => {
+      if (current.includes(mode)) {
+        return current.length === 1 ? current : current.filter((item) => item !== mode);
+      }
+      return [...current, mode];
+    });
+  }
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
@@ -47,7 +56,8 @@ export function SettingsClient() {
           full_name: fullName,
           email,
           school_or_workplace: school,
-          preferred_mode: mode
+          preferred_mode: modes[0],
+          preferred_modes: modes
         })
       });
       setMessage("Settings saved.");
@@ -88,14 +98,14 @@ export function SettingsClient() {
             </div>
           </div>
           <div>
-            <Label>Preferred commute mode</Label>
+            <Label>Preferred commute modes</Label>
             <div className="mt-3 flex flex-wrap gap-2">
               {preferredModes.map((item) => (
                 <button
                   key={item}
                   type="button"
-                  onClick={() => setMode(item as PreferredMode)}
-                  className={cn("rounded-full border px-4 py-2 text-sm", mode === item ? "border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue" : "border-white/10 bg-white/[0.04] text-white/45")}
+                  onClick={() => toggleMode(item as PreferredMode)}
+                  className={cn("rounded-full border px-4 py-2 text-sm", modes.includes(item as PreferredMode) ? "border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue" : "border-white/10 bg-white/[0.04] text-white/45")}
                 >
                   {item}
                 </button>

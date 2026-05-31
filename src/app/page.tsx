@@ -11,7 +11,14 @@ const features = [
   { title: "Understand patterns", body: "Turn commute history into simple trends for better timing decisions.", icon: BarChart3 }
 ];
 
-export default function LandingPage() {
+export default async function LandingPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const authError = typeof params?.error_description === "string" ? params.error_description : null;
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-bg text-white">
       <div className="route-grid absolute inset-0 opacity-50" />
@@ -35,6 +42,20 @@ export default function LandingPage() {
             </Button>
           </div>
         </nav>
+        {authError ? (
+          <section className="mt-6 rounded-[20px] border border-[var(--red-border)] bg-[var(--red-soft)] p-4 text-sm text-white/72">
+            <p className="font-heading font-bold text-red">That auth link is no longer valid.</p>
+            <p className="mt-1">{authError}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild variant="secondary">
+                <Link href="/auth/login">Send a new reset link</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/auth/signup">Create another account</Link>
+              </Button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1fr_0.95fr] lg:py-16">
           <div className="max-w-2xl">

@@ -43,7 +43,7 @@ export function DesktopSidebar() {
   return (
     <aside className="hidden h-screen w-[272px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0B0E14]/92 backdrop-blur-2xl lg:flex">
       <div className="border-b border-white/[0.05] p-5">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-[13px] bg-blue">
             <MapPinned className="size-5 text-white" />
           </span>

@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Mail } from "lucide-react";
+import { Mail, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,8 +64,9 @@ export function LoginFormClient() {
     try {
       const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
+      const redirectOrigin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/auth/reset`
+        redirectTo: `${redirectOrigin}/auth/reset`
       });
       if (error) throw error;
       setMessage("Password reset email sent. Use it to set a fresh password, then log in again.");
@@ -100,11 +101,15 @@ export function LoginFormClient() {
           {loading ? "Opening..." : "Log in"}
         </Button>
       </form>
-      {canReset ? (
-        <Button type="button" variant="secondary" className="w-full" onClick={sendPasswordReset} disabled={loading || !email.trim()}>
-          Send password reset
-        </Button>
-      ) : null}
+      <Button type="button" variant="secondary" className="w-full" onClick={sendPasswordReset} disabled={loading || !email.trim()}>
+        Forgot password? Send reset email
+      </Button>
+      <Button type="button" variant="ghost" className="w-full" asChild>
+        <Link href="/auth/signup">
+          <UserPlus className="size-4" />
+          Create another account
+        </Link>
+      </Button>
       <Button type="button" variant="secondary" className="w-full" onClick={continueDemo}>Continue in demo mode</Button>
     </div>
   );
@@ -115,10 +120,19 @@ export function SignupFormClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [school, setSchool] = useState("");
-  const [mode, setMode] = useState<PreferredMode>("Jeepney");
+  const [modes, setModes] = useState<PreferredMode[]>(["Jeepney"]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function toggleMode(mode: PreferredMode) {
+    setModes((current) => {
+      if (current.includes(mode)) {
+        return current.length === 1 ? current : current.filter((item) => item !== mode);
+      }
+      return [...current, mode];
+    });
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -135,7 +149,8 @@ export function SignupFormClient() {
           data: {
             full_name: fullName,
             school_or_workplace: school,
-            preferred_mode: mode
+            preferred_mode: modes[0],
+            preferred_modes: modes
           }
         }
       });
@@ -153,7 +168,8 @@ export function SignupFormClient() {
           full_name: fullName,
           email: normalizedEmail,
           school_or_workplace: school,
-          preferred_mode: mode
+          preferred_mode: modes[0],
+          preferred_modes: modes
         })
       });
       window.location.href = "/dashboard";
@@ -183,14 +199,14 @@ export function SignupFormClient() {
         <Input className="mt-2" value={school} onChange={(event) => setSchool(event.target.value)} placeholder="School or workplace" required />
       </div>
       <div className="md:col-span-2">
-        <Label>Preferred commute mode</Label>
+        <Label>Preferred commute modes</Label>
         <div className="mt-3 flex flex-wrap gap-2">
           {preferredModes.map((item) => (
             <button
               key={item}
               type="button"
-              onClick={() => setMode(item as PreferredMode)}
-              className={cn("rounded-full border px-4 py-2 text-sm", mode === item ? "border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue" : "border-white/10 bg-white/[0.04] text-white/45")}
+              onClick={() => toggleMode(item as PreferredMode)}
+              className={cn("rounded-full border px-4 py-2 text-sm", modes.includes(item as PreferredMode) ? "border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue" : "border-white/10 bg-white/[0.04] text-white/45")}
             >
               {item}
             </button>
@@ -210,7 +226,55 @@ export function SignupFormClient() {
 export function ResetPasswordFormClient() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+  const authError = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const queryError = new URLSearchParams(window.location.search).get("error_description");
+    const hashError = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description");
+    return queryError || hashError;
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    async function prepareSession() {
+      setLoading(true);
+      setError(null);
+      try {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
+        const hashError = hash.get("error_description");
+
+        if (hashError || authError) {
+          throw new Error(hashError || authError || "Reset link is invalid or expired.");
+        }
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          if (error) throw error;
+          window.history.replaceState(null, "", "/auth/reset");
+        }
+
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          throw new Error("Open the latest password reset email first, or send yourself a new reset link from the login page.");
+        }
+        setReady(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Reset link is invalid or expired.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    prepareSession();
+  }, [authError]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -224,7 +288,10 @@ export function ResetPasswordFormClient() {
 
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      window.location.href = "/dashboard";
+      setMessage("Password updated. Redirecting to your dashboard...");
+      window.setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 900);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update password");
     } finally {
@@ -236,10 +303,14 @@ export function ResetPasswordFormClient() {
     <form className="mt-8 space-y-5" onSubmit={submit}>
       <div>
         <Label>New password</Label>
-        <Input className="mt-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} />
+        <Input className="mt-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} disabled={!ready || loading} />
       </div>
       {error ? <p className="rounded-2xl border border-[var(--red-border)] bg-[var(--red-soft)] p-3 text-sm text-red">{error}</p> : null}
-      <Button className="w-full" disabled={loading}>{loading ? "Saving..." : "Update password"}</Button>
+      {message ? <p className="rounded-2xl border border-[var(--teal-border)] bg-[var(--teal-soft)] p-3 text-sm text-teal">{message}</p> : null}
+      <Button className="w-full" disabled={loading || !ready}>{loading ? "Checking link..." : "Update password"}</Button>
+      <Button type="button" variant="secondary" className="w-full" asChild>
+        <Link href="/auth/login">Send a new reset link</Link>
+      </Button>
     </form>
   );
 }

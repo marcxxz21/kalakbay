@@ -7,7 +7,8 @@ const profileSchema = z.object({
   full_name: z.string().min(2),
   email: z.string().email().optional().or(z.literal("")),
   school_or_workplace: z.string().min(2),
-  preferred_mode: z.enum(["Walking", "Jeepney", "Bus", "Train", "Bike", "Car", "Mixed"])
+  preferred_mode: z.enum(["Walking", "Jeepney", "Bus", "Train", "Bike", "Car", "Mixed"]).optional(),
+  preferred_modes: z.array(z.enum(["Walking", "Jeepney", "Bus", "Train", "Bike", "Car", "Mixed"])).min(1).optional()
 });
 
 export async function GET(request: Request) {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
   const sessionId = await getRequestSessionId(request);
   const supabase = getSupabaseDataClient(sessionId);
   const body = profileSchema.parse(await request.json());
+  const preferredModes = body.preferred_modes?.length ? body.preferred_modes : [body.preferred_mode ?? "Mixed"];
 
   const { data, error } = await supabase
     .from("ll_app_users")
@@ -37,7 +39,8 @@ export async function POST(request: Request) {
       full_name: body.full_name,
       email: body.email || null,
       school_or_workplace: body.school_or_workplace,
-      preferred_mode: body.preferred_mode,
+      preferred_mode: preferredModes[0],
+      preferred_modes: preferredModes,
       updated_at: new Date().toISOString()
     }, { onConflict: "session_id" })
     .select("*")

@@ -9,6 +9,7 @@ export type AppUser = {
   email: string | null;
   school_or_workplace: string;
   preferred_mode: PreferredMode;
+  preferred_modes?: PreferredMode[] | null;
   created_at: string;
   updated_at: string;
 };
