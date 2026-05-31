@@ -3,6 +3,35 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 export const demoSessionId = "demo";
 export const sessionHeaderName = "x-lakbayloop-session";
 
+export function normalizeAccountEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export function getLocalAccountSessionId(email: string) {
+  return `local:${normalizeAccountEmail(email)}`;
+}
+
+const accountEmailsKey = "lakbayloop_account_emails";
+
+export function getRememberedAccountEmails() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(accountEmailsKey) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberAccountEmail(email: string) {
+  if (typeof window === "undefined") return;
+  const normalized = normalizeAccountEmail(email);
+  const emails = getRememberedAccountEmails();
+  if (emails.includes(normalized)) return;
+  window.localStorage.setItem(accountEmailsKey, JSON.stringify([...emails, normalized]));
+}
+
 export function getBrowserSessionId() {
   if (typeof window === "undefined") return demoSessionId;
 

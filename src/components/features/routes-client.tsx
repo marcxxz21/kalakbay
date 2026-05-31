@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Filter } from "lucide-react";
 import { AddRouteForm } from "@/components/commute/add-route-form";
@@ -44,7 +44,7 @@ export function RoutesPageClient() {
     setQuery(searchParams.get("q") ?? "");
   }, [searchParams]);
 
-  const mobile = useMemo(() => (
+  const mobile = (
     <div className="space-y-5">
       <header className="flex items-center justify-between gap-3">
         <div>
@@ -53,7 +53,12 @@ export function RoutesPageClient() {
         </div>
         <AddRouteForm onSaved={() => loadRoutes()} />
       </header>
-      <SearchInput className="h-12 w-full" value={query} onChange={setQuery} />
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        loadRoutes(query);
+      }}>
+        <SearchInput className="h-12 w-full" value={query} onChange={setQuery} submitLabel="Search routes" />
+      </form>
       {error ? <p className="rounded-2xl border border-[var(--red-border)] bg-[var(--red-soft)] p-3 text-sm text-red">{error}</p> : null}
       <div className="space-y-3">
         {loading ? <p className="text-sm text-white/45">Loading routes...</p> : routes.map((route) => (
@@ -61,7 +66,7 @@ export function RoutesPageClient() {
         ))}
       </div>
     </div>
-  ), [routes, query, loading, error]);
+  );
 
   async function toggleFavorite(route: SavedRoute) {
     await apiFetch<{ route: SavedRoute }>(`/api/routes/${route.id}`, {
@@ -72,10 +77,15 @@ export function RoutesPageClient() {
   }
 
   const desktop = (
-    <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="space-y-4">
+    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <section className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <SearchInput className="h-11 w-full sm:w-80" value={query} onChange={setQuery} />
+          <form className="w-full sm:w-80" onSubmit={(event) => {
+            event.preventDefault();
+            loadRoutes(query);
+          }}>
+            <SearchInput className="h-11 w-full" value={query} onChange={setQuery} submitLabel="Search routes" />
+          </form>
           <div className="flex gap-2">
             <Button variant="secondary">
               <Filter className="size-4" />

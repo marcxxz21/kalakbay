@@ -10,7 +10,6 @@ import { DarkCard } from "@/components/ui-custom/dark-card";
 import { apiFetch } from "@/lib/api-client";
 import { preferredModes } from "@/lib/constants";
 import { clearBrowserSessionId } from "@/lib/session";
-import { createClient } from "@/lib/supabase/client";
 import type { AppUser, PreferredMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -68,13 +67,7 @@ export function SettingsClient() {
     }
   }
 
-  async function signOut() {
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    } catch {
-      // Demo sessions do not have a Supabase Auth session to clear.
-    }
+  function signOut() {
     clearBrowserSessionId();
     window.location.href = "/auth/login";
   }
@@ -123,7 +116,7 @@ export function SettingsClient() {
       <DarkCard className="h-fit p-5">
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-white/35">Account</p>
         <h2 className="mt-2 font-heading text-2xl font-black">Session controls</h2>
-        <p className="mt-3 text-sm leading-6 text-white/50">Sign out clears the local LakbayLoop session and any active Supabase Auth session in this browser.</p>
+        <p className="mt-3 text-sm leading-6 text-white/50">Sign out clears the local LakbayLoop profile session in this browser.</p>
         <Button variant="secondary" className="mt-5 w-full" onClick={signOut}>
           <LogOut className="size-4" />
           Sign out

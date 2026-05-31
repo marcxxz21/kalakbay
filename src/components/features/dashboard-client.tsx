@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Bell, CloudRain } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { RouteCard } from "@/components/commute/route-card";
@@ -20,6 +21,7 @@ import { CalendarCheck, Database, Route, TrendingUp } from "lucide-react";
 const loadingData: DashboardData | null = null;
 
 export function DashboardClient() {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(loadingData);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -57,8 +59,14 @@ export function DashboardClient() {
   const userName = data?.user.full_name.split(" ")[0] ?? "Josie";
   const initials = (data?.user.full_name ?? "Josie Dela Cruz").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = search.trim();
+    router.push(trimmed ? `/routes?q=${encodeURIComponent(trimmed)}` : "/routes");
+  }
+
   const context = (
-    <div className="glass-panel relative overflow-hidden rounded-[24px] p-5">
+    <div className="glass-panel relative min-w-0 overflow-hidden rounded-[24px] p-5">
       <div className="absolute -right-10 -top-12 size-36 rounded-full bg-blue/10 blur-2xl" />
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -97,7 +105,9 @@ export function DashboardClient() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <Avatar initials={initials} />
-        <SearchInput className="mx-3 h-12 flex-1" value={search} onChange={setSearch} />
+        <form className="mx-3 min-w-0 flex-1" onSubmit={submitSearch}>
+          <SearchInput className="h-12 w-full" value={search} onChange={setSearch} submitLabel="Search routes" />
+        </form>
         <Link href="/insights" className="flex size-10 items-center justify-center rounded-[14px] border border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue">
           <Bell className="size-5" />
         </Link>
@@ -129,31 +139,31 @@ export function DashboardClient() {
   );
 
   const desktop = (
-    <div className="space-y-5">
-      <div className="grid gap-4 xl:grid-cols-4">
+    <div className="min-w-0 space-y-5">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         {metrics.map((metric) => <MetricCard key={metric.label} {...metric} />)}
       </div>
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
         {context}
-        <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4">
           <CommuteTipCard />
-          <div className="rounded-[20px] border border-white/[0.065] bg-surface p-5">
+          <div className="min-w-0 rounded-[20px] border border-white/[0.065] bg-surface p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-heading text-lg font-black">Favorite routes</h3>
               <Link href="/routes" className="text-sm font-semibold text-blue">See all</Link>
             </div>
-            <div className="mb-4">
-              <SearchInput className="h-10 w-full" value={search} onChange={setSearch} />
-            </div>
+            <form className="mb-4" onSubmit={submitSearch}>
+              <SearchInput className="h-10 w-full" value={search} onChange={setSearch} submitLabel="Search routes" />
+            </form>
             <div className="space-y-3">
               {filteredRoutes.map((route) => <RouteCard key={route.id} route={route} compact />)}
             </div>
           </div>
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
         <WeatherAirQualityChart />
-        <div className="rounded-[20px] border border-white/[0.065] bg-surface p-5">
+        <div className="min-w-0 rounded-[20px] border border-white/[0.065] bg-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-heading text-lg font-black">Recent logs</h3>
             <RouteLogForm buttonLabel="Log ride" routes={data?.routes ?? []} onSaved={loadDashboard} />

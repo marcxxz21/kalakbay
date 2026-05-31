@@ -21,14 +21,14 @@ export function Topbar({ title, subtitle }: { title: string; subtitle: string })
   }
 
   return (
-    <header className="flex h-[70px] shrink-0 items-center justify-between border-b border-white/[0.05] bg-bg/60 px-7 backdrop-blur-xl">
-      <div>
-        <h1 className="font-heading text-xl font-black tracking-normal text-white">{title}</h1>
-        <p className="mt-0.5 text-xs text-white/35">{subtitle}</p>
+    <header className="flex h-[70px] shrink-0 items-center justify-between gap-4 border-b border-white/[0.05] bg-bg/60 px-5 backdrop-blur-xl xl:px-6 2xl:px-7">
+      <div className="min-w-0">
+        <h1 className="truncate font-heading text-xl font-black tracking-normal text-white">{title}</h1>
+        <p className="mt-0.5 truncate text-xs text-white/35">{subtitle}</p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         <form className="hidden xl:block" onSubmit={searchRoutes}>
-          <SearchInput className="w-[240px]" value={query} onChange={setQuery} />
+          <SearchInput className="w-[240px]" value={query} onChange={setQuery} submitLabel="Search routes" />
         </form>
         <div className="hidden items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.04] px-4 py-2 text-xs text-white/42 sm:flex">
           <CalendarDays className="size-4" />

@@ -92,20 +92,6 @@ export function TrackingClient() {
     setTracking(false);
   }
 
-  const mapPoint = current ?? points[0];
-  const lat = Number(mapPoint?.latitude ?? process.env.NEXT_PUBLIC_DEFAULT_MAP_LAT ?? 14.5995);
-  const lng = Number(mapPoint?.longitude ?? process.env.NEXT_PUBLIC_DEFAULT_MAP_LNG ?? 120.9842);
-  const mapSrc = useMemo(() => {
-    const base = process.env.NEXT_PUBLIC_OSM_EMBED_BASE ?? "https://www.openstreetmap.org/export/embed.html";
-    const pad = 0.01;
-    const params = new URLSearchParams({
-      bbox: `${lng - pad},${lat - pad},${lng + pad},${lat + pad}`,
-      layer: "mapnik",
-      marker: `${lat},${lng}`
-    });
-    return `${base}?${params.toString()}`;
-  }, [lat, lng]);
-
   const latestRoute = routes.find((route) => route.id === routeId);
   const routePoints = points.filter((point) => !routeId || point.route_id === routeId);
   const routeMapAvailable = Boolean(
@@ -114,13 +100,32 @@ export function TrackingClient() {
     latestRoute?.destination_lat &&
     latestRoute?.destination_lng
   );
+  const mapPoint = current ?? routePoints[0] ?? points[0];
+  const lat = Number(mapPoint?.latitude ?? latestRoute?.origin_lat ?? process.env.NEXT_PUBLIC_DEFAULT_MAP_LAT ?? 14.5995);
+  const lng = Number(mapPoint?.longitude ?? latestRoute?.origin_lng ?? process.env.NEXT_PUBLIC_DEFAULT_MAP_LNG ?? 120.9842);
+  const mapSrc = useMemo(() => {
+    const base = process.env.NEXT_PUBLIC_OSM_EMBED_BASE ?? "https://www.openstreetmap.org/export/embed.html";
+    const routeLats = routeMapAvailable ? [Number(latestRoute?.origin_lat), Number(latestRoute?.destination_lat)] : [lat];
+    const routeLngs = routeMapAvailable ? [Number(latestRoute?.origin_lng), Number(latestRoute?.destination_lng)] : [lng];
+    const minLat = Math.min(lat, ...routeLats);
+    const maxLat = Math.max(lat, ...routeLats);
+    const minLng = Math.min(lng, ...routeLngs);
+    const maxLng = Math.max(lng, ...routeLngs);
+    const pad = 0.01;
+    const params = new URLSearchParams({
+      bbox: `${minLng - pad},${minLat - pad},${maxLng + pad},${maxLat + pad}`,
+      layer: "mapnik",
+      marker: `${lat},${lng}`
+    });
+    return `${base}?${params.toString()}`;
+  }, [lat, latestRoute?.destination_lat, latestRoute?.destination_lng, latestRoute?.origin_lat, latestRoute?.origin_lng, lng, routeMapAvailable]);
   const directionsUrl = latestRoute && routeMapAvailable
     ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${latestRoute.origin_lat}%2C${latestRoute.origin_lng}%3B${latestRoute.destination_lat}%2C${latestRoute.destination_lng}`
     : null;
 
   const content = (
-    <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-      <section className="space-y-4">
+    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <section className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <select
             className="h-11 min-w-64 rounded-2xl border border-white/[0.08] bg-surface-soft px-4 text-sm text-white outline-none"
@@ -149,18 +154,15 @@ export function TrackingClient() {
           </div>
         </div>
         {error ? <p className="rounded-2xl border border-[var(--red-border)] bg-[var(--red-soft)] p-3 text-sm text-red">{error}</p> : null}
-        {latestRoute && routeMapAvailable ? (
-          <RouteTrackerMap route={latestRoute} points={routePoints} current={mapPoint} />
-        ) : (
-          <div className="overflow-hidden rounded-[22px] border border-white/[0.08] bg-surface">
-            <iframe
-              title="Realtime commute map"
-              src={mapSrc}
-              className="h-[460px] w-full border-0"
-              loading="lazy"
-            />
-          </div>
-        )}
+        {latestRoute && routeMapAvailable ? <RouteTrackerMap route={latestRoute} points={routePoints} current={mapPoint} /> : null}
+        <div className="overflow-hidden rounded-[22px] border border-white/[0.08] bg-surface">
+          <iframe
+            title="Realtime commute map"
+            src={mapSrc}
+            className="h-[360px] w-full border-0 xl:h-[420px]"
+            loading="lazy"
+          />
+        </div>
       </section>
       <aside className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">

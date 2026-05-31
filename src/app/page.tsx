@@ -35,23 +35,23 @@ export default async function LandingPage({
           </Link>
           <div className="hidden items-center gap-2 sm:flex">
             <Button asChild variant="secondary" className="hidden sm:inline-flex">
-              <Link href="/auth/login">Log in</Link>
+              <Link href="/auth/login">Open profile</Link>
             </Button>
             <Button asChild>
-              <Link href="/auth/signup">Create account</Link>
+              <Link href="/auth/signup">Create profile</Link>
             </Button>
           </div>
         </nav>
         {authError ? (
           <section className="mt-6 rounded-[20px] border border-[var(--red-border)] bg-[var(--red-soft)] p-4 text-sm text-white/72">
-            <p className="font-heading font-bold text-red">That auth link is no longer valid.</p>
+            <p className="font-heading font-bold text-red">That old email link is no longer needed.</p>
             <p className="mt-1">{authError}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild variant="secondary">
-                <Link href="/auth/login">Send a new reset link</Link>
+                <Link href="/auth/login">Open profile by email</Link>
               </Button>
               <Button asChild>
-                <Link href="/auth/signup">Create another account</Link>
+                <Link href="/auth/signup">Create profile</Link>
               </Button>
             </div>
           </section>
@@ -71,12 +71,12 @@ export default async function LandingPage({
             <div className="mt-8 grid gap-3 sm:flex">
               <Button size="lg" className="w-full sm:w-auto" asChild>
                 <Link href="/auth/signup">
-                  Create account
+                  Create profile
                   <ArrowRight className="size-5" />
                 </Link>
               </Button>
               <Button size="lg" variant="secondary" className="w-full sm:w-auto" asChild>
-                <Link href="/auth/login">Log in</Link>
+                <Link href="/auth/login">Open profile</Link>
               </Button>
             </div>
           </div>

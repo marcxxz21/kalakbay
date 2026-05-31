@@ -31,21 +31,21 @@ export function RouteCard({
   const condition = route.condition ?? (route.is_favorite ? "Good" : "Moderate");
 
   return (
-    <div className={cn("rounded-[20px] border border-white/[0.055] bg-surface p-4 transition hover:border-white/10 hover:bg-surface-soft", compact ? "space-y-3" : "space-y-4")}>
-      <div className="flex items-start gap-3">
+    <div className={cn("min-w-0 rounded-[20px] border border-white/[0.055] bg-surface p-4 transition hover:border-white/10 hover:bg-surface-soft", compact ? "space-y-3" : "space-y-4")}>
+      <div className="flex min-w-0 items-start gap-3">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-[14px] border border-[var(--blue-border)] bg-[var(--blue-soft)] text-blue">
           <Icon className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate font-heading text-base font-black text-white">{route.route_name}</h3>
             <button type="button" onClick={() => onToggleFavorite?.(route)} aria-label="Toggle favorite">
               <Heart className={cn("size-4 text-white/24", route.is_favorite && "fill-blue text-blue")} />
             </button>
           </div>
-          <p className="mt-1 flex items-center gap-1 truncate text-xs text-white/42">
-            <MapPin className="size-3.5" />
-            {route.origin_name} &gt; {route.destination_name}
+          <p className="mt-1 flex min-w-0 items-center gap-1 text-xs text-white/42">
+            <MapPin className="size-3.5 shrink-0" />
+            <span className="truncate">{route.origin_name} &gt; {route.destination_name}</span>
           </p>
           <p className="mt-1 truncate text-xs text-white/32">
             {route.preferred_mode} · {route.distance_km} km · last log {route.latest_log ?? "No logs yet"}
