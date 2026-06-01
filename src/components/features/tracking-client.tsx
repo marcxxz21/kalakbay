@@ -21,12 +21,27 @@ import {
 import { ResponsiveShell } from "@/components/layout/responsive-shell";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-client";
-import { calculateDistanceKm } from "@/lib/commute-calculations";
 import { calculateDistanceMeters, calculateTrackedDistanceMeters } from "@/lib/tracking/distance";
 import { cn } from "@/lib/utils";
 import type { SavedRoute, TrackingPoint } from "@/lib/types";
 
 type TrackingResponse = { points: TrackingPoint[] };
+type DirectionStep = {
+  instruction: string;
+  name: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  type: string;
+  modifier: string | null;
+  location: MapPoint | null;
+};
+type DirectionsResponse = {
+  provider: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  points: MapPoint[];
+  steps: DirectionStep[];
+};
 type TrackingStatus = "idle" | "requesting-permission" | "tracking" | "paused" | "ended" | "error";
 type LocationPoint = {
   latitude: number;
@@ -64,6 +79,9 @@ export function TrackingClient() {
   const [savingSummary, setSavingSummary] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+  const [directionsLoading, setDirectionsLoading] = useState(false);
+  const [directionsError, setDirectionsError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const routeIdRef = useRef(routeId);
 
@@ -217,19 +235,67 @@ export function TrackingClient() {
   const origin = selectedRoute?.origin_lat !== null && selectedRoute?.origin_lat !== undefined && selectedRoute?.origin_lng !== null && selectedRoute?.origin_lng !== undefined
     ? { latitude: Number(selectedRoute.origin_lat), longitude: Number(selectedRoute.origin_lng) }
     : null;
+
+  useEffect(() => {
+    if (!origin || !destination) {
+      setDirections(null);
+      setDirectionsError(null);
+      setDirectionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setDirectionsLoading(true);
+    setDirectionsError(null);
+
+    const params = new URLSearchParams({
+      originLat: String(origin.latitude),
+      originLng: String(origin.longitude),
+      destinationLat: String(destination.latitude),
+      destinationLng: String(destination.longitude)
+    });
+
+    apiFetch<DirectionsResponse>(`/api/directions?${params.toString()}`)
+      .then((result) => {
+        if (!controller.signal.aborted) setDirections(result);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setDirections(null);
+        setDirectionsError(err instanceof Error ? err.message : "Unable to load street directions");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDirectionsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [origin?.latitude, origin?.longitude, destination?.latitude, destination?.longitude]);
+
   const routeCenter = getRouteCenter(origin, destination);
+  const routeGeometry = directions?.points?.length ? directions.points : origin && destination ? [origin, destination] : [];
   const visibleCurrent = currentPosition ?? (latestHistoryPoint ? trackingPointToLocationPoint(latestHistoryPoint) : null);
   const mapCenter = isFollowingUser && visibleCurrent
     ? visibleCurrent
     : manualCenter ?? routeCenter ?? visibleCurrent ?? defaultCenter;
-  const remainingKm = visibleCurrent && destination
-    ? calculateDistanceKm(visibleCurrent.latitude, visibleCurrent.longitude, destination.latitude, destination.longitude)
-    : Number(selectedRoute?.distance_km ?? 0);
+  const routeDistanceMeters = directions?.distanceMeters ?? Number(selectedRoute?.distance_km ?? 0) * 1000;
+  const routeDurationSeconds = directions?.durationSeconds ?? Number(selectedRoute?.estimated_minutes ?? 0) * 60;
+  const remainingMeters = visibleCurrent && routeGeometry.length > 1
+    ? calculateRemainingRouteMeters(visibleCurrent, routeGeometry)
+    : routeDistanceMeters;
+  const remainingKm = remainingMeters / 1000;
   const etaMinutes = selectedRoute
-    ? visibleCurrent && destination
-      ? Math.max(1, Math.round((remainingKm / Math.max(Number(selectedRoute.distance_km), 1)) * selectedRoute.estimated_minutes))
+    ? routeDistanceMeters
+      ? Math.max(1, Math.round((remainingMeters / Math.max(routeDistanceMeters, 1)) * (routeDurationSeconds / 60)))
       : selectedRoute.estimated_minutes
     : 0;
+  const nearestRouteIndex = visibleCurrent && routeGeometry.length > 1 ? getNearestRouteIndex(visibleCurrent, routeGeometry) : 0;
+  const remainingGeometry = visibleCurrent && routeGeometry.length > 1
+    ? [visibleCurrent, ...routeGeometry.slice(Math.min(nearestRouteIndex + 1, routeGeometry.length - 1))]
+    : routeGeometry;
+  const completedGeometry = visibleCurrent && routeGeometry.length > 1
+    ? routeGeometry.slice(0, Math.max(1, nearestRouteIndex + 1))
+    : [];
+  const nextStep = getNextDirectionStep(visibleCurrent, directions?.steps ?? []);
   const arrivalTime = etaMinutes ? new Date(Date.now() + etaMinutes * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "--";
   const directionsUrl = selectedRoute && origin && destination
     ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${origin.latitude}%2C${origin.longitude}%3B${destination.latitude}%2C${destination.longitude}`
@@ -247,6 +313,14 @@ export function TrackingClient() {
       route={selectedRoute}
       origin={origin}
       destination={destination}
+      routeGeometry={routeGeometry}
+      remainingGeometry={remainingGeometry}
+      completedGeometry={completedGeometry}
+      directionSteps={directions?.steps ?? []}
+      nextStep={nextStep}
+      directionsLoading={directionsLoading}
+      directionsError={directionsError}
+      directionsProvider={directions?.provider ?? null}
       currentPosition={visibleCurrent}
       sessionPoints={sessionPoints}
       mapCenter={mapCenter}
@@ -295,6 +369,14 @@ function LiveTrackingScreen({
   route,
   origin,
   destination,
+  routeGeometry,
+  remainingGeometry,
+  completedGeometry,
+  directionSteps,
+  nextStep,
+  directionsLoading,
+  directionsError,
+  directionsProvider,
   currentPosition,
   sessionPoints,
   mapCenter,
@@ -327,6 +409,14 @@ function LiveTrackingScreen({
   route?: SavedRoute;
   origin: MapPoint | null;
   destination: MapPoint | null;
+  routeGeometry: MapPoint[];
+  remainingGeometry: MapPoint[];
+  completedGeometry: MapPoint[];
+  directionSteps: DirectionStep[];
+  nextStep: DirectionStep | null;
+  directionsLoading: boolean;
+  directionsError: string | null;
+  directionsProvider: string | null;
   currentPosition: LocationPoint | null;
   sessionPoints: LocationPoint[];
   mapCenter: MapPoint;
@@ -363,7 +453,7 @@ function LiveTrackingScreen({
   const topDistance = isTracking ? Math.min(Math.max(remainingKm, 0.1), 0.3).toFixed(1) : etaMinutes ? `${etaMinutes} min` : "--";
   const destinationName = route ? shortPlaceName(route.destination_name) : "destination";
   const instruction = isTracking
-    ? `Continue toward ${destinationName}`
+    ? nextStep?.instruction ?? `Continue toward ${destinationName}`
     : trackingStatus === "requesting-permission"
       ? "Requesting location..."
       : trackingStatus === "paused"
@@ -395,6 +485,9 @@ function LiveTrackingScreen({
         center={mapCenter}
         origin={origin}
         destination={destination}
+        routeGeometry={routeGeometry}
+        remainingGeometry={remainingGeometry}
+        completedGeometry={completedGeometry}
         currentPosition={currentPosition}
         sessionPoints={sessionPoints}
         follow={isFollowingUser && Boolean(currentPosition)}
@@ -487,6 +580,32 @@ function LiveTrackingScreen({
           <MetricCell label="Accuracy" value={formatAccuracy(currentPosition?.accuracy)} muted />
         </div>
 
+        <div className="mt-4 rounded-2xl bg-black/[0.045] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-black/42">Street directions</p>
+            <span className="text-[11px] font-bold text-black/42">{directionsProvider ?? "Routing"}</span>
+          </div>
+          {directionsLoading ? (
+            <p className="mt-2 text-sm font-semibold text-black/55">Loading street-by-street route...</p>
+          ) : directionsError ? (
+            <p className="mt-2 text-sm font-semibold text-red">{directionsError}</p>
+          ) : directionSteps.length ? (
+            <ol className="mt-2 space-y-2">
+              {directionSteps.slice(0, 3).map((step, index) => (
+                <li key={`${step.instruction}-${index}`} className="flex gap-2 text-sm leading-5 text-black/68">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-blue text-[11px] font-black text-white">{index + 1}</span>
+                  <span className="min-w-0">
+                    <b className="block truncate text-black">{step.instruction}</b>
+                    <span className="text-xs font-semibold text-black/42">{formatDistanceMeters(step.distanceMeters)}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm font-semibold text-black/55">Add route coordinates to load road directions.</p>
+          )}
+        </div>
+
         <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-2">
           <select className="h-11 min-w-0 rounded-2xl border border-black/10 bg-black/[0.04] px-3 text-sm font-semibold outline-none" value={routeId} onChange={(event) => onRouteChange(event.target.value)} disabled={isActive}>
             <option value="">No route selected</option>
@@ -532,6 +651,9 @@ function LiveTileMap({
   center,
   origin,
   destination,
+  routeGeometry,
+  remainingGeometry,
+  completedGeometry,
   currentPosition,
   sessionPoints,
   follow,
@@ -542,6 +664,9 @@ function LiveTileMap({
   center: MapPoint;
   origin: MapPoint | null;
   destination: MapPoint | null;
+  routeGeometry: MapPoint[];
+  remainingGeometry: MapPoint[];
+  completedGeometry: MapPoint[];
   currentPosition: LocationPoint | null;
   sessionPoints: LocationPoint[];
   follow: boolean;
@@ -578,7 +703,9 @@ function LiveTileMap({
     };
   }, [anchorY, centerPixel.x, centerPixel.y, size.width, zoom]);
 
-  const routePath = origin && destination ? buildPath([origin, currentPosition ?? origin, destination], toScreen) : "";
+  const routePath = routeGeometry.length > 1 ? buildPath(routeGeometry, toScreen) : origin && destination ? buildPath([origin, destination], toScreen) : "";
+  const remainingRoutePath = remainingGeometry.length > 1 ? buildPath(remainingGeometry, toScreen) : "";
+  const completedRoutePath = completedGeometry.length > 1 ? buildPath(completedGeometry, toScreen) : "";
   const traveledPath = sessionPoints.length > 1 ? buildPath(sessionPoints, toScreen) : "";
   const originPoint = origin ? toScreen(origin) : null;
   const destinationPoint = destination ? toScreen(destination) : null;
@@ -626,10 +753,12 @@ function LiveTileMap({
       <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
         {routePath ? (
           <>
-            <path d={routePath} fill="none" stroke="rgba(4,9,16,0.34)" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={routePath} fill="none" stroke="#5b8ef0" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={routePath} fill="none" stroke="rgba(4,9,16,0.36)" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={routePath} fill="none" stroke="rgba(91,142,240,0.34)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
           </>
         ) : null}
+        {completedRoutePath ? <path d={completedRoutePath} fill="none" stroke="#22d3b6" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        {remainingRoutePath ? <path d={remainingRoutePath} fill="none" stroke="#5b8ef0" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> : null}
         {traveledPath ? <path d={traveledPath} fill="none" stroke="#22d3b6" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
       </svg>
       {originPoint ? <MapLabel point={originPoint} label="Start" tone="blue" /> : null}
@@ -860,6 +989,40 @@ function getRouteCenter(origin: MapPoint | null, destination: MapPoint | null) {
     latitude: (origin.latitude + destination.latitude) / 2,
     longitude: (origin.longitude + destination.longitude) / 2
   };
+}
+
+function getNearestRouteIndex(point: MapPoint, routeGeometry: MapPoint[]) {
+  return routeGeometry.reduce((nearestIndex, routePoint, index) => {
+    const nearestDistance = calculateDistanceMeters(point, routeGeometry[nearestIndex]);
+    const candidateDistance = calculateDistanceMeters(point, routePoint);
+    return candidateDistance < nearestDistance ? index : nearestIndex;
+  }, 0);
+}
+
+function calculateRemainingRouteMeters(point: MapPoint, routeGeometry: MapPoint[]) {
+  if (routeGeometry.length < 2) return 0;
+  const nearestIndex = getNearestRouteIndex(point, routeGeometry);
+  const remainingPoints = [point, ...routeGeometry.slice(Math.min(nearestIndex + 1, routeGeometry.length - 1))];
+  return calculatePathDistanceMeters(remainingPoints);
+}
+
+function calculatePathDistanceMeters(points: MapPoint[]) {
+  return points.reduce((total, point, index) => {
+    const previous = points[index - 1];
+    return previous ? total + calculateDistanceMeters(previous, point) : total;
+  }, 0);
+}
+
+function getNextDirectionStep(current: MapPoint | null, steps: DirectionStep[]) {
+  if (!steps.length) return null;
+  if (!current) return steps[0];
+
+  const upcoming = steps.find((step) => {
+    if (!step.location || step.type === "depart") return false;
+    return calculateDistanceMeters(current, step.location) > 35;
+  });
+
+  return upcoming ?? steps[steps.length - 1] ?? null;
 }
 
 function projectPoint(point: MapPoint, zoom: number): PixelPoint {

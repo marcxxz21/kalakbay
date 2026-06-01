@@ -19,6 +19,7 @@ export function RoutesPageClient() {
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [selected, setSelected] = useState<SavedRoute | null>(null);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const [desktopDetailsOpen, setDesktopDetailsOpen] = useState(false);
   const [mobileLogSignal, setMobileLogSignal] = useState<number | undefined>(undefined);
   const [desktopLogSignal, setDesktopLogSignal] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -178,7 +179,10 @@ export function RoutesPageClient() {
               key={route.id}
               route={route}
               active={selected?.id === route.id}
-              onSelect={setSelected}
+              onSelect={(item) => {
+                setSelected(item);
+                setDesktopDetailsOpen(true);
+              }}
               onLog={(item) => {
                 setSelected(item);
                 setDesktopLogSignal((signal) => (signal ?? 0) + 1);
@@ -223,6 +227,49 @@ export function RoutesPageClient() {
           </>
         ) : <p className="text-sm text-white/45">Select or add a route to see details.</p>}
       </aside>
+      {selected && desktopDetailsOpen ? (
+        <div className="fixed inset-0 z-[70] hidden items-center justify-center bg-bg/75 p-6 backdrop-blur-md lg:flex">
+          <section className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-white/[0.08] bg-surface p-6 shadow-panel">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-white/35">Route details</p>
+                <h2 className="mt-1 truncate font-heading text-3xl font-black">{selected.route_name}</h2>
+              </div>
+              <button type="button" className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]" onClick={() => setDesktopDetailsOpen(false)} aria-label="Close route details">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="mt-4">
+              <StatusBadge status={selected.is_favorite ? "Good" : "Moderate"} />
+            </div>
+            <div className="mt-5 grid gap-3 text-sm text-white/62 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white/[0.035] p-4 sm:col-span-2">
+                <span className="flex items-center gap-2 text-xs text-white/35"><MapPin className="size-4 text-blue" /> Origin</span>
+                <p className="mt-2 leading-6 text-white/82">{selected.origin_name}</p>
+              </div>
+              <div className="rounded-2xl bg-white/[0.035] p-4 sm:col-span-2">
+                <span className="flex items-center gap-2 text-xs text-white/35"><MapPin className="size-4 text-teal" /> Destination</span>
+                <p className="mt-2 leading-6 text-white/82">{selected.destination_name}</p>
+              </div>
+              <div className="rounded-2xl bg-white/[0.035] p-4">
+                <p className="text-xs text-white/35">Mode</p>
+                <p className="mt-1 font-heading text-lg font-black text-white">{selected.preferred_mode}</p>
+              </div>
+              <div className="rounded-2xl bg-white/[0.035] p-4">
+                <p className="flex items-center gap-2 text-xs text-white/35"><Clock className="size-4 text-amber" /> Estimated</p>
+                <p className="mt-1 font-heading text-lg font-black text-white">{selected.estimated_minutes} min</p>
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setDesktopDetailsOpen(false)}>Close</Button>
+              <Button onClick={() => {
+                setDesktopDetailsOpen(false);
+                setDesktopLogSignal((signal) => (signal ?? 0) + 1);
+              }}>Log Ride</Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 
