@@ -1,4 +1,4 @@
-import { Bike, Bus, Car, Clock, Footprints, Heart, MapPin, TrainFront, Trash2 } from "lucide-react";
+import { Bike, Bus, Car, Clock, Footprints, Heart, MapPin, Pencil, TrainFront, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui-custom/status-badge";
 import { formatModes } from "@/lib/commute-calculations";
@@ -22,6 +22,7 @@ export function RouteCard({
   onLog,
   onSelect,
   onToggleFavorite,
+  onEdit,
   onDelete,
   deleting = false
 }: {
@@ -31,6 +32,7 @@ export function RouteCard({
   onLog?: (route: SavedRoute) => void;
   onSelect?: (route: SavedRoute) => void;
   onToggleFavorite?: (route: SavedRoute) => void;
+  onEdit?: (route: SavedRoute) => void;
   onDelete?: (route: SavedRoute) => void;
   deleting?: boolean;
 }) {
@@ -86,6 +88,18 @@ export function RouteCard({
         <div className="flex gap-2">
           <Button variant="teal" size="sm" className="flex-1" onClick={() => onLog?.(route)}>Log Ride</Button>
           <Button variant="secondary" size="sm" className="flex-1" onClick={() => onSelect?.(route)}>Details</Button>
+          {onEdit ? (
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => onEdit(route)}
+              aria-label={`Edit ${route.route_name}`}
+              title="Edit route"
+            >
+              <Pencil className="size-4" />
+            </Button>
+          ) : null}
           {onDelete ? (
             <Button
               variant="danger"

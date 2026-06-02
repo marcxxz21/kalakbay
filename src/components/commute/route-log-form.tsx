@@ -18,7 +18,8 @@ export function RouteLogForm({
   selectedRouteId,
   onSaved,
   openSignal,
-  hideTrigger = false
+  hideTrigger = false,
+  editLog
 }: {
   buttonLabel?: string;
   routes?: SavedRoute[];
@@ -26,6 +27,7 @@ export function RouteLogForm({
   onSaved?: (log: RouteLog) => void;
   openSignal?: string | number;
   hideTrigger?: boolean;
+  editLog?: RouteLog | null;
 }) {
   const [open, setOpen] = useState(false);
   const [routeSource, setRouteSource] = useState<"saved" | "new">("saved");
@@ -43,22 +45,45 @@ export function RouteLogForm({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isEditing = Boolean(editLog);
   const availableRoutes = useMemo(() => routes, [routes]);
   const selectedRoute = availableRoutes.find((route) => route.id === routeId) ?? availableRoutes[0];
   const canSaveNewRoute = newRouteName.trim().length >= 2 && newOriginName.trim().length >= 3 && newDestinationName.trim().length >= 3;
 
   useEffect(() => {
     if (openSignal === undefined) return;
+
+    if (editLog) {
+      const route = routes.find((item) => item.id === editLog.route_id) ?? routes[0];
+      setRouteSource(editLog.route_id || route?.id ? "saved" : "new");
+      setRouteId(editLog.route_id ?? route?.id ?? "");
+      setModes(editLog.preferred_modes?.length ? editLog.preferred_modes : route?.preferred_modes?.length ? route.preferred_modes : route?.preferred_mode ? [route.preferred_mode] : ["Mixed"]);
+      setTravelDate(editLog.travel_date.slice(0, 10));
+      setMinutes(String(editLog.actual_duration_minutes));
+      setCrowd(editLog.crowd_level);
+      setRating(editLog.rating);
+      setNotes(editLog.notes ?? "");
+      setError(null);
+      setOpen(true);
+      return;
+    }
+
     const nextRouteId = selectedRouteId ?? routes[0]?.id ?? "";
     setRouteSource(nextRouteId ? "saved" : "new");
     setRouteId(nextRouteId);
     const route = routes.find((item) => item.id === nextRouteId) ?? routes[0];
     setModes(route?.preferred_modes?.length ? route.preferred_modes : route?.preferred_mode ? [route.preferred_mode] : ["Mixed"]);
+    setTravelDate(new Date().toISOString().slice(0, 10));
+    setMinutes("");
+    setCrowd("moderate");
+    setRating(4);
+    setNotes("");
+    setError(null);
     setOpen(true);
-  }, [openSignal, routes, selectedRouteId]);
+  }, [editLog, openSignal, routes, selectedRouteId]);
 
   useEffect(() => {
-    if (!open || routeSource !== "saved") return;
+    if (!open || routeSource !== "saved" || isEditing) return;
     setModes(selectedRoute?.preferred_modes?.length ? selectedRoute.preferred_modes : selectedRoute?.preferred_mode ? [selectedRoute.preferred_mode] : ["Mixed"]);
   }, [open, routeSource, selectedRoute]);
 
@@ -88,8 +113,8 @@ export function RouteLogForm({
         activeRouteId = routeResult.route.id;
       }
 
-      const result = await apiFetch<{ log: RouteLog }>("/api/logs", {
-        method: "POST",
+      const result = await apiFetch<{ log: RouteLog }>(isEditing && editLog ? `/api/logs?id=${encodeURIComponent(editLog.id)}` : "/api/logs", {
+        method: isEditing ? "PATCH" : "POST",
         body: JSON.stringify({
           route_id: activeRouteId,
           travel_date: travelDate,
@@ -131,7 +156,7 @@ export function RouteLogForm({
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-white/35">Commute log</p>
-                <h2 className="font-heading text-xl font-black">How was the ride?</h2>
+                <h2 className="font-heading text-xl font-black">{isEditing ? "Edit ride log" : "How was the ride?"}</h2>
               </div>
               <button type="button" className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]" onClick={() => setOpen(false)} aria-label="Close">
                 <X className="size-4" />
@@ -258,7 +283,7 @@ export function RouteLogForm({
                 <Textarea className="mt-2" placeholder="Rain, crowding, delays, transfer notes..." value={notes} onChange={(event) => setNotes(event.target.value)} />
               </div>
               {error ? <p className="rounded-2xl border border-[var(--red-border)] bg-[var(--red-soft)] p-3 text-sm text-red">{error}</p> : null}
-              <Button className="w-full" disabled={saving || (routeSource === "saved" && !availableRoutes.length) || (routeSource === "new" && !canSaveNewRoute)}>{saving ? "Saving..." : "Save Log"}</Button>
+              <Button className="w-full" disabled={saving || (routeSource === "saved" && !availableRoutes.length) || (routeSource === "new" && !canSaveNewRoute)}>{saving ? "Saving..." : isEditing ? "Save Changes" : "Save Log"}</Button>
             </div>
           </form>
         </div>

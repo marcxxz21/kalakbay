@@ -62,6 +62,46 @@ export async function POST(request: Request) {
   return NextResponse.json({ log: data }, { status: 201 });
 }
 
+export async function PATCH(request: Request) {
+  const sessionId = await getRequestSessionId(request);
+  const supabase = getSupabaseDataClient(sessionId);
+  const id = new URL(request.url).searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "Log id is required" }, { status: 400 });
+  }
+
+  const body = logSchema.parse(await request.json());
+  const { data: route } = await supabase
+    .from("ll_saved_routes")
+    .select("preferred_mode, preferred_modes")
+    .eq("session_id", sessionId)
+    .eq("id", body.route_id)
+    .maybeSingle();
+
+  const preferredModes = body.preferred_modes?.length
+    ? body.preferred_modes
+    : route?.preferred_modes?.length
+      ? route.preferred_modes
+      : [route?.preferred_mode ?? "Mixed"];
+
+  const { data, error } = await supabase
+    .from("ll_route_logs")
+    .update({
+      ...body,
+      preferred_modes: preferredModes,
+      notes: body.notes || null
+    })
+    .eq("session_id", sessionId)
+    .eq("id", id)
+    .select("*, ll_saved_routes(route_name, preferred_mode, preferred_modes)")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: error.code === "PGRST116" ? 404 : 500 });
+
+  return NextResponse.json({ log: data });
+}
+
 export async function DELETE(request: Request) {
   const sessionId = await getRequestSessionId(request);
   const supabase = getSupabaseDataClient(sessionId);

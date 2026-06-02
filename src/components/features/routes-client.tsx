@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Clock, Filter, MapPin, Trash2, X } from "lucide-react";
+import { Clock, Filter, MapPin, Pencil, Trash2, X } from "lucide-react";
 import { AddRouteForm } from "@/components/commute/add-route-form";
 import { RouteCard } from "@/components/commute/route-card";
 import { RouteLogForm } from "@/components/commute/route-log-form";
@@ -28,6 +28,8 @@ export function RoutesPageClient() {
   const [desktopDetailsOpen, setDesktopDetailsOpen] = useState(false);
   const [mobileLogSignal, setMobileLogSignal] = useState<number | undefined>(undefined);
   const [desktopLogSignal, setDesktopLogSignal] = useState<number | undefined>(undefined);
+  const [editingRoute, setEditingRoute] = useState<SavedRoute | null>(null);
+  const [editRouteSignal, setEditRouteSignal] = useState<number | undefined>(undefined);
   const [routeFilter, setRouteFilter] = useState<RouteFilter>("All");
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -125,6 +127,7 @@ export function RoutesPageClient() {
               setMobileLogSignal((signal) => (signal ?? 0) + 1);
             }}
             onToggleFavorite={toggleFavorite}
+            onEdit={editSavedRoute}
             onDelete={deleteRoute}
             deleting={deletingRouteId === route.id}
           />
@@ -137,6 +140,16 @@ export function RoutesPageClient() {
         openSignal={mobileLogSignal}
         hideTrigger
         onSaved={() => loadRoutes()}
+      />
+      <AddRouteForm
+        editRoute={editingRoute}
+        openSignal={editRouteSignal}
+        hideTrigger
+        onSaved={(route) => {
+          setEditingRoute(null);
+          setSelected(route);
+          loadRoutes();
+        }}
       />
       {selected && mobileDetailsOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end bg-bg/80 backdrop-blur-md lg:hidden">
@@ -173,8 +186,12 @@ export function RoutesPageClient() {
                 </div>
               </div>
             </div>
-            <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-4">
               <Button variant="secondary" onClick={() => setMobileDetailsOpen(false)}>Close</Button>
+              <Button variant="secondary" onClick={() => editSavedRoute(selected)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
               <Button variant="danger" onClick={() => deleteRoute(selected)} disabled={deletingRouteId === selected.id}>
                 <Trash2 className="size-4" />
                 Delete
@@ -189,6 +206,13 @@ export function RoutesPageClient() {
       ) : null}
     </div>
   );
+
+  function editSavedRoute(route: SavedRoute) {
+    setEditingRoute(route);
+    setMobileDetailsOpen(false);
+    setDesktopDetailsOpen(false);
+    setEditRouteSignal((signal) => (signal ?? 0) + 1);
+  }
 
   async function deleteRoute(route: SavedRoute) {
     const confirmed = window.confirm(`Delete "${route.route_name}"? This also removes commute logs linked to this route.`);
@@ -291,6 +315,7 @@ export function RoutesPageClient() {
                 setDesktopLogSignal((signal) => (signal ?? 0) + 1);
               }}
               onToggleFavorite={toggleFavorite}
+              onEdit={editSavedRoute}
               onDelete={deleteRoute}
               deleting={deletingRouteId === route.id}
             />
@@ -303,6 +328,16 @@ export function RoutesPageClient() {
           openSignal={desktopLogSignal}
           hideTrigger
           onSaved={() => loadRoutes()}
+        />
+        <AddRouteForm
+          editRoute={editingRoute}
+          openSignal={editRouteSignal}
+          hideTrigger
+          onSaved={(route) => {
+            setEditingRoute(null);
+            setSelected(route);
+            loadRoutes();
+          }}
         />
       </section>
       <aside className="h-fit rounded-[24px] border border-white/[0.065] bg-surface p-5">
@@ -329,6 +364,10 @@ export function RoutesPageClient() {
             </div>
             <div className="mt-5 space-y-3">
               <RouteLogForm buttonLabel="Log this route" routes={routes} selectedRouteId={selected.id} />
+              <Button variant="secondary" className="w-full" onClick={() => editSavedRoute(selected)}>
+                <Pencil className="size-4" />
+                Edit route
+              </Button>
               <Button variant="danger" className="w-full" onClick={() => deleteRoute(selected)} disabled={deletingRouteId === selected.id}>
                 <Trash2 className="size-4" />
                 Delete route
@@ -370,8 +409,12 @@ export function RoutesPageClient() {
                 <p className="mt-1 font-heading text-lg font-black text-white">{selected.estimated_minutes} min</p>
               </div>
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="mt-5 grid grid-cols-4 gap-2">
               <Button variant="secondary" onClick={() => setDesktopDetailsOpen(false)}>Close</Button>
+              <Button variant="secondary" onClick={() => editSavedRoute(selected)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
               <Button variant="danger" onClick={() => deleteRoute(selected)} disabled={deletingRouteId === selected.id}>
                 <Trash2 className="size-4" />
                 Delete

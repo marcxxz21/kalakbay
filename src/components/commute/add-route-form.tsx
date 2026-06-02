@@ -33,7 +33,34 @@ const defaultState: FormState = {
   is_favorite: false
 };
 
-export function AddRouteForm({ onSaved }: { onSaved?: (route: SavedRoute) => void }) {
+function routeAddressResult(route: SavedRoute | null | undefined, kind: "origin" | "destination"): AddressResult | null {
+  const latitude = kind === "origin" ? route?.origin_lat : route?.destination_lat;
+  const longitude = kind === "origin" ? route?.origin_lng : route?.destination_lng;
+  const label = kind === "origin" ? route?.origin_name : route?.destination_name;
+
+  if (latitude == null || longitude == null || !label) return null;
+
+  return {
+    id: `${route?.id ?? "route"}-${kind}`,
+    label,
+    name: label,
+    latitude,
+    longitude,
+    type: "saved-route"
+  };
+};
+
+export function AddRouteForm({
+  onSaved,
+  editRoute,
+  openSignal,
+  hideTrigger = false
+}: {
+  onSaved?: (route: SavedRoute) => void;
+  editRoute?: SavedRoute | null;
+  openSignal?: string | number;
+  hideTrigger?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [modes, setModes] = useState<PreferredMode[]>(["Walking"]);
   const [form, setForm] = useState<FormState>(defaultState);
@@ -41,6 +68,23 @@ export function AddRouteForm({ onSaved }: { onSaved?: (route: SavedRoute) => voi
   const [destination, setDestination] = useState<AddressResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isEditing = Boolean(editRoute);
+
+  useEffect(() => {
+    if (openSignal === undefined || !editRoute) return;
+
+    setForm({
+      route_name: editRoute.route_name,
+      origin_name: editRoute.origin_name,
+      destination_name: editRoute.destination_name,
+      is_favorite: editRoute.is_favorite
+    });
+    setOrigin(routeAddressResult(editRoute, "origin"));
+    setDestination(routeAddressResult(editRoute, "destination"));
+    setModes(editRoute.preferred_modes?.length ? editRoute.preferred_modes : [editRoute.preferred_mode]);
+    setError(null);
+    setOpen(true);
+  }, [editRoute, openSignal]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -59,8 +103,8 @@ export function AddRouteForm({ onSaved }: { onSaved?: (route: SavedRoute) => voi
         preferred_mode: modes[0],
         preferred_modes: modes
       };
-      const result = await apiFetch<{ route: SavedRoute }>("/api/routes", {
-        method: "POST",
+      const result = await apiFetch<{ route: SavedRoute }>(isEditing && editRoute ? `/api/routes/${editRoute.id}` : "/api/routes", {
+        method: isEditing ? "PATCH" : "POST",
         body: JSON.stringify(payload)
       });
       onSaved?.(result.route);
@@ -92,15 +136,17 @@ export function AddRouteForm({ onSaved }: { onSaved?: (route: SavedRoute) => voi
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="size-4" />
-        Add route
-      </Button>
+      {hideTrigger ? null : (
+        <Button onClick={() => setOpen(true)}>
+          <Plus className="size-4" />
+          {isEditing ? "Edit route" : "Add route"}
+        </Button>
+      )}
       {open ? (
         <div className="fixed inset-0 z-[80] flex items-end bg-bg/85 backdrop-blur-md lg:items-center lg:justify-center">
           <form onSubmit={handleSubmit} className="max-h-[90vh] w-full overflow-y-auto rounded-t-[28px] border border-white/[0.08] bg-surface p-5 shadow-panel lg:max-w-3xl lg:rounded-[28px]">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-heading text-xl font-black">Add saved route</h2>
+              <h2 className="font-heading text-xl font-black">{isEditing ? "Edit saved route" : "Add saved route"}</h2>
               <button type="button" className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]" onClick={() => setOpen(false)} aria-label="Close">
                 <X className="size-4" />
               </button>
@@ -184,7 +230,7 @@ export function AddRouteForm({ onSaved }: { onSaved?: (route: SavedRoute) => voi
               </label>
             </div>
             {error ? <p className="mt-4 rounded-2xl border border-[var(--red-border)] bg-[var(--red-soft)] p-3 text-sm text-red">{error}</p> : null}
-            <Button className="mt-5 w-full" disabled={saving || !origin || !destination}>{saving ? "Saving..." : "Save Route"}</Button>
+            <Button className="mt-5 w-full" disabled={saving || form.route_name.trim().length < 2 || form.origin_name.trim().length < 1 || form.destination_name.trim().length < 1}>{saving ? "Saving..." : isEditing ? "Save Changes" : "Save Route"}</Button>
           </form>
         </div>
       ) : null}
